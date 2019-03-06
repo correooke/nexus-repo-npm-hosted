@@ -1,68 +1,72 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# Utilizar Nexus y repositorio privado para deploy y "cache" de packages
 
-## Available Scripts
+Información de referencia: 
 
-In the project directory, you can run:
+https://blog.sonatype.com/using-nexus-3-as-your-repository-part-2-npm-packages
 
-### `npm start`
+https://help.sonatype.com/repomanager3/node-packaged-modules-and-npm-registries
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+### Docker de Nexus
 
-The page will reload if you make edits.<br>
-You will also see any lint errors in the console.
+docker run -d -p 8081:8081 -p 8082:8082 -p 8083:8083 --name my-nexus sonatype/nexus3:3.0.0
 
-### `npm test`
+Para generar una carpeta que mapee los volúmenes de Nexus a la computadora anfitriona: -v /opt/my-nexus-data:/nexus-data
 
-Launches the test runner in the interactive watch mode.<br>
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Para acceder a la administración: admin/admin123
 
-### `npm run build`
+Luego de correr ese comando verificar que levante correctamente el servicio ingresando a la página: 
+http://localhost:8081
 
-Builds the app for production to the `build` folder.<br>
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Ingresar al área de administración
 
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
+Dentro de la "tuerca" se pueden agregar respositorios, vamos a agregar 3 del tipo npm: 
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+- hosted: para nuestros packages (npm-private)
+- proxy: para "cachear" los packages de npm (npm-proxy)
+- group: para agrupar todos los otros registry (npm-group)
 
-### `npm run eject`
+Se puede definir un "blob store" (y es recomendable) por cada uno de los repositorios, de manera que luego se encuentren en carpetas diferentes (dentro de /nexus-data)
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+# Configuración de npm
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Install packages 
 
-Instead, it will copy all the configuration files and the transitive dependencies (Webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+Se podría configurar npm de forma global con "npm addUser" sin embargo para distribuir más fácilmente esta información se puede agregar un archivo ".npmrc" en la carpeta raíz del o los proyectos con el siguiente contenido:
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+registry=[URL-NPM-GROUP]
+_auth=[HASH-USER]
 
-## Learn More
+Para los valores por defecto queda como lo siguiente:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+registry=http://localhost:8081/repository/npm-group/
+_auth=YWRtaW46YWRtaW4xMjM=
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Si utilizamos otro usuario o contraseña se calcula el hash con el siguiente comando: 
 
-### Code Splitting
+echo -n 'myuser:mypassword' | openssl base64
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
 
-### Analyzing the Bundle Size
+Una vez que tenemos ese paso completo ya Nexus nos sirve como "cache" de respositorios. 
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+## Publish
 
-### Making a Progressive Web App
+Para completar el proceso, en toda máquina que necesitemos publicar nuestros componentes podremos agregar la siguiente configuración:
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+Dentro del ".npmrc"
 
-### Advanced Configuration
+email=any@email.com
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
 
-### Deployment
+Y dentro del package.json se debe configurar el registry del repository a donde publicaremos nuestro "package", con lo siguiente:
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
+  "publishConfig": {
+    "registry": "http://localhost:8081/repository/npm-private/"
+  } 
 
-### `npm run build` fails to minify
+Y cambiando esto: 
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+  "private": false,
+
+  (de true a false)
+
+Una vez hecho ese paso podemos hacer "yarn build" o "npm run build" y luego "npm publish". Deberíamos ver que entre los assets del respository "npm-private" aparece nuestro package disponible
