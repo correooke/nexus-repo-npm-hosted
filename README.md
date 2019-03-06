@@ -1,4 +1,4 @@
-# Utilizar Nexus y repositorio privado para deploy y "cache" de packages
+# Utilizar Nexus y repositorio privado para publish y "cache" de packages
 
 Información de referencia: 
 
